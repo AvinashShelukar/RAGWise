@@ -1,51 +1,56 @@
-import requests
+import os
+
+from dotenv import load_dotenv
+from huggingface_hub import InferenceClient
 
 from backend.retriever import Retriever
 
+load_dotenv()
 
-OLLAMA_URL = "http://localhost:11434/api/generate"
-MODEL_NAME = "qwen2.5:7b"
+HF_TOKEN = os.getenv("HF_TOKEN")
+
+MODEL_NAME = "deepseek-ai/DeepSeek-R1:fastest"
 
 
 class RAGPipeline:
 
     def __init__(self):
-
         print("Initializing RAG pipeline...")
 
+        if not HF_TOKEN:
+            raise RuntimeError(
+                "HF_TOKEN is not set. Add it to your .env file."
+            )
+
         self.retriever = Retriever()
+
+        self.client = InferenceClient(
+            token=HF_TOKEN
+        )
 
         print("RAG pipeline ready.")
 
     def generate_answer(self, question, top_k=5):
 
-        # --------------------------------------------------
-        # 1. Retrieve relevant chunks
-        # --------------------------------------------------
-
+        # Retrieve relevant chunks
         results = self.retriever.search(
             question,
             top_k=top_k
         )
 
         if not results:
-
             return {
                 "answer": (
-                    "I could not find relevant "
-                    "information in the provided PDF."
+                    "I could not find relevant information "
+                    "in the provided PDF."
                 ),
                 "citations": []
             }
 
-        # --------------------------------------------------
-        # 2. Build context
-        # --------------------------------------------------
-
+        # Build context
         context_parts = []
 
         for i, result in enumerate(results):
-
             context_parts.append(
                 f"""
 SOURCE {i + 1}
@@ -58,25 +63,16 @@ Page: {result['page']}
 
         context = "\n".join(context_parts)
 
-        # --------------------------------------------------
-        # 3. Prompt the LLM
-        # --------------------------------------------------
-
+        # Prompt
         prompt = f"""
-You are a PDF question-answering assistant.
-
-Answer the user's question using ONLY the context
-provided below.
+Answer the user's question using ONLY the context below.
 
 Rules:
-
 1. Do not use outside knowledge.
 2. Do not invent facts.
-3. Do not mention page numbers.
-4. Do not create citations.
-5. If the context does not contain the answer,
+3. Do not mention page numbers in the answer.
+4. If the answer is not present in the context,
    say that you could not find the answer in the PDF.
-6. Give a clear and concise answer.
 
 CONTEXT:
 
@@ -89,34 +85,31 @@ QUESTION:
 ANSWER:
 """
 
-        # --------------------------------------------------
-        # 4. Call Ollama
-        # --------------------------------------------------
-
-        payload = {
-            "model": MODEL_NAME,
-            "prompt": prompt,
-            "stream": False
-        }
-
-        response = requests.post(
-            OLLAMA_URL,
-            json=payload,
-            timeout=180
+        # Generate answer using Hugging Face
+        response = self.client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a PDF question-answering assistant. "
+                        "Answer only from the supplied context."
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            max_tokens=500
         )
 
-        response.raise_for_status()
+        answer = response.choices[0].message.content.strip()
 
-        data = response.json()
-
-        answer = data["response"].strip()
-
-        # --------------------------------------------------
-        # 5. Generate citations from retrieved metadata
-        # --------------------------------------------------
-
+        if "<think>" in answer and "</think>" in answer:
+            answer = answer.split("</think>", 1)[1].strip()
+        # Build citations
         citations = []
-
         seen = set()
 
         for result in results:
@@ -139,10 +132,6 @@ ANSWER:
                     4
                 )
             })
-
-        # --------------------------------------------------
-        # 6. Return answer + trusted citations
-        # --------------------------------------------------
 
         return {
             "answer": answer,
