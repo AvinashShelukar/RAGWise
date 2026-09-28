@@ -9,83 +9,83 @@ from backend.ingest import ingest_pdfs
 
 
 app = FastAPI(
-    title="Local PDF RAG API",
-    description="Local PDF Question Answering System",
+    title="RAGWise PDF RAG API",
+    description="PDF Question Answering System using RAG",
     version="1.0.0"
 )
 
 
-# ============================================================
-# PATHS
-# ============================================================
+# --------------------------------------------------
+# Paths
+# --------------------------------------------------
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 PDF_FOLDER = BASE_DIR / "data" / "pdfs"
-
-PDF_FOLDER.mkdir(
-    parents=True,
-    exist_ok=True
-)
+PDF_FOLDER.mkdir(parents=True, exist_ok=True)
 
 
-# ============================================================
-# RAG PIPELINE
-# ============================================================
+# --------------------------------------------------
+# Lazy RAG Pipeline
+# --------------------------------------------------
 
-rag = RAGPipeline()
+rag = None
 
 
-# ============================================================
-# REQUEST MODEL
-# ============================================================
+def get_rag():
+    global rag
+
+    if rag is None:
+        rag = RAGPipeline()
+
+    return rag
+
+
+# --------------------------------------------------
+# Request Model
+# --------------------------------------------------
 
 class QuestionRequest(BaseModel):
-
     question: str
     top_k: int = 5
 
 
-# ============================================================
-# ROOT
-# ============================================================
+# --------------------------------------------------
+# Root
+# --------------------------------------------------
 
 @app.get("/")
 def root():
-
     return {
-        "message": "Local PDF RAG API is running",
+        "message": "RAGWise PDF RAG API is running",
         "status": "success"
     }
 
 
-# ============================================================
-# HEALTH CHECK
-# ============================================================
+# --------------------------------------------------
+# Health Check
+# --------------------------------------------------
 
 @app.get("/health")
 def health():
-
     return {
         "status": "healthy"
     }
 
 
-# ============================================================
-# LIST PDFs
-# ============================================================
+# --------------------------------------------------
+# List Documents
+# --------------------------------------------------
 
 @app.get("/documents")
 def documents():
 
-    pdf_files = sorted(
-        [
-            file.name
-            for file in PDF_FOLDER.iterdir()
-            if file.is_file()
-            and file.suffix.lower() == ".pdf"
-        ]
-    )
+    pdf_files = sorted([
+        file.name
+        for file in PDF_FOLDER.iterdir()
+        if file.is_file()
+        and file.suffix.lower() == ".pdf"
+    ])
 
     return {
         "documents": pdf_files,
@@ -93,52 +93,32 @@ def documents():
     }
 
 
-# ============================================================
-# UPLOAD PDF
-# ============================================================
+# --------------------------------------------------
+# Upload PDF
+# --------------------------------------------------
 
 @app.post("/upload")
-async def upload_pdf(
-    file: UploadFile = File(...)
-):
-
-    # --------------------------------------------------------
-    # Validate extension
-    # --------------------------------------------------------
+async def upload_pdf(file: UploadFile = File(...)):
 
     if not file.filename:
-
         raise HTTPException(
             status_code=400,
             detail="No filename provided."
         )
 
-
     if not file.filename.lower().endswith(".pdf"):
-
         raise HTTPException(
             status_code=400,
             detail="Only PDF files are allowed."
         )
 
-
-    # --------------------------------------------------------
-    # Secure filename
-    # --------------------------------------------------------
-
     safe_filename = Path(file.filename).name
-
     file_path = PDF_FOLDER / safe_filename
 
-
-    # --------------------------------------------------------
-    # Save PDF
-    # --------------------------------------------------------
-
+    # Save uploaded PDF
     try:
 
         with open(file_path, "wb") as output:
-
             shutil.copyfileobj(
                 file.file,
                 output
@@ -151,20 +131,17 @@ async def upload_pdf(
             detail=f"Failed to save PDF: {error}"
         )
 
-
-    # --------------------------------------------------------
-    # Index PDFs
-    # --------------------------------------------------------
-
+    # Build / rebuild vector store
     try:
 
         ingest_pdfs()
 
     except Exception as error:
 
-        # Remove uploaded file if indexing failed
         try:
-            file_path.unlink(missing_ok=True)
+            file_path.unlink(
+                missing_ok=True
+            )
         except Exception:
             pass
 
@@ -173,35 +150,36 @@ async def upload_pdf(
             detail=f"PDF ingestion failed: {error}"
         )
 
+    # Reload RAG pipeline so it uses
+    # the newly created FAISS index
+    global rag
 
-    # --------------------------------------------------------
-    # Success
-    # --------------------------------------------------------
+    try:
+
+        rag = RAGPipeline()
+
+    except Exception as error:
+
+        rag = None
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"RAG pipeline reload failed: {error}"
+        )
 
     return {
-
         "message": "PDF uploaded and indexed successfully.",
-
         "filename": safe_filename,
-
-        "path": str(file_path),
-
         "status": "success"
     }
 
 
-# ============================================================
-# ASK QUESTION
-# ============================================================
+# --------------------------------------------------
+# Ask Question
+# --------------------------------------------------
 
 @app.post("/ask")
-def ask_question(
-    request: QuestionRequest
-):
-
-    # --------------------------------------------------------
-    # Validate question
-    # --------------------------------------------------------
+def ask_question(request: QuestionRequest):
 
     if not request.question.strip():
 
@@ -210,11 +188,6 @@ def ask_question(
             detail="Question cannot be empty."
         )
 
-
-    # --------------------------------------------------------
-    # Validate top_k
-    # --------------------------------------------------------
-
     if request.top_k < 1 or request.top_k > 20:
 
         raise HTTPException(
@@ -222,19 +195,26 @@ def ask_question(
             detail="top_k must be between 1 and 20."
         )
 
-
-    # --------------------------------------------------------
-    # RAG
-    # --------------------------------------------------------
-
     try:
 
-        result = rag.generate_answer(
+        pipeline = get_rag()
+
+        result = pipeline.generate_answer(
             request.question,
             top_k=request.top_k
         )
 
         return result
+
+    except FileNotFoundError:
+
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "No PDF has been indexed yet. "
+                "Upload a PDF using the /upload endpoint first."
+            )
+        )
 
     except Exception as error:
 
