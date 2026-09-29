@@ -4,9 +4,6 @@ import shutil
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from pydantic import BaseModel
 
-from backend.rag import RAGPipeline
-from backend.ingest import ingest_pdfs
-
 
 app = FastAPI(
     title="RAGWise PDF RAG API",
@@ -36,6 +33,7 @@ def get_rag():
     global rag
 
     if rag is None:
+        from backend.rag import RAGPipeline
         rag = RAGPipeline()
 
     return rag
@@ -63,7 +61,7 @@ def root():
 
 
 # --------------------------------------------------
-# Health Check
+# Health
 # --------------------------------------------------
 
 @app.get("/health")
@@ -74,18 +72,20 @@ def health():
 
 
 # --------------------------------------------------
-# List Documents
+# Documents
 # --------------------------------------------------
 
 @app.get("/documents")
 def documents():
 
-    pdf_files = sorted([
-        file.name
-        for file in PDF_FOLDER.iterdir()
-        if file.is_file()
-        and file.suffix.lower() == ".pdf"
-    ])
+    pdf_files = sorted(
+        [
+            file.name
+            for file in PDF_FOLDER.iterdir()
+            if file.is_file()
+            and file.suffix.lower() == ".pdf"
+        ]
+    )
 
     return {
         "documents": pdf_files,
@@ -115,9 +115,8 @@ async def upload_pdf(file: UploadFile = File(...)):
     safe_filename = Path(file.filename).name
     file_path = PDF_FOLDER / safe_filename
 
-    # Save uploaded PDF
+    # Save PDF
     try:
-
         with open(file_path, "wb") as output:
             shutil.copyfileobj(
                 file.file,
@@ -125,23 +124,22 @@ async def upload_pdf(file: UploadFile = File(...)):
             )
 
     except Exception as error:
-
         raise HTTPException(
             status_code=500,
             detail=f"Failed to save PDF: {error}"
         )
 
-    # Build / rebuild vector store
+    # Import ingestion only when needed
     try:
+
+        from backend.ingest import ingest_pdfs
 
         ingest_pdfs()
 
     except Exception as error:
 
         try:
-            file_path.unlink(
-                missing_ok=True
-            )
+            file_path.unlink(missing_ok=True)
         except Exception:
             pass
 
@@ -150,11 +148,12 @@ async def upload_pdf(file: UploadFile = File(...)):
             detail=f"PDF ingestion failed: {error}"
         )
 
-    # Reload RAG pipeline so it uses
-    # the newly created FAISS index
+    # Reload RAG pipeline
     global rag
 
     try:
+
+        from backend.rag import RAGPipeline
 
         rag = RAGPipeline()
 
@@ -182,14 +181,12 @@ async def upload_pdf(file: UploadFile = File(...)):
 def ask_question(request: QuestionRequest):
 
     if not request.question.strip():
-
         raise HTTPException(
             status_code=400,
             detail="Question cannot be empty."
         )
 
     if request.top_k < 1 or request.top_k > 20:
-
         raise HTTPException(
             status_code=400,
             detail="top_k must be between 1 and 20."
