@@ -46,6 +46,7 @@ def get_rag():
 class QuestionRequest(BaseModel):
     question: str
     top_k: int = 5
+    source: str | None = None
 
 
 # --------------------------------------------------
@@ -198,9 +199,9 @@ def ask_question(request: QuestionRequest):
 
         result = pipeline.generate_answer(
             request.question,
-            top_k=request.top_k
-        )
-
+            top_k=request.top_k,
+            source=request.source
+)
         return result
 
     except FileNotFoundError:
