@@ -6,4 +6,5 @@ faiss-cpu
 pydantic
 python-dotenv
 huggingface_hub
-numpysentence-transformers
+numpy
+sentence-transformers
