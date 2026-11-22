@@ -1,261 +1,380 @@
-# RAGWise — Local PDF Question Answering with RAG
+# RAGWise — Local PDF RAG Assistant
 
-RAGWise is a Retrieval-Augmented Generation (RAG) application that lets users ask questions about PDF documents and receive context-aware answers with source-page citations.
+<p align="center">
+  <strong>Ask questions. Retrieve evidence. Get answers from your PDFs.</strong>
+</p>
 
-The project combines semantic search, vector similarity retrieval, and a locally hosted language model to make document question answering more useful and transparent.
+<p align="center">
+  A privacy-focused, locally running Retrieval-Augmented Generation (RAG) application powered by React, FastAPI, FAISS, Sentence Transformers, and Ollama.
+</p>
 
-## Features
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.11-blue?logo=python" alt="Python"/>
+  <img src="https://img.shields.io/badge/React-Frontend-61DAFB?logo=react" alt="React"/>
+  <img src="https://img.shields.io/badge/FastAPI-Backend-009688?logo=fastapi" alt="FastAPI"/>
+  <img src="https://img.shields.io/badge/FAISS-Vector_Search-00599C" alt="FAISS"/>
+  <img src="https://img.shields.io/badge/Ollama-Local_AI-black?logo=ollama" alt="Ollama"/>
+  <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT"/>
+</p>
 
-- **PDF-based question answering** using retrieved document content.
-- **Local semantic embeddings** using the BGE small English embedding model.
-- **Vector similarity search** using FAISS.
-- **Local LLM inference** using Ollama and `qwen2.5:7b`.
-- **Source citations** with PDF filenames and page numbers.
-- **FastAPI REST API** with interactive Swagger documentation.
-- **Document-aware retrieval** to restrict answers to a selected PDF.
-- **Configurable retrieval count** through the `top_k` parameter.
+---
+
+## Overview
+
+**RAGWise** is a local PDF question-answering application that allows users to upload PDF documents, retrieve relevant information, and generate context-aware answers using a locally hosted Large Language Model (LLM).
+
+Instead of relying only on an LLM's training knowledge, RAGWise retrieves relevant document passages and uses them as context for answer generation.
+
+The application combines a React frontend, FastAPI backend, semantic vector search, and local LLM inference to provide a complete document-based question-answering workflow.
+
+## Key Features
+
+- **PDF Question Answering:** Ask natural-language questions about uploaded PDF documents.
+- **Local Embeddings:** Generate document and query embeddings using `BAAI/bge-small-en-v1.5`.
+- **Semantic Search:** Retrieve relevant document chunks using FAISS.
+- **Document-Aware Retrieval:** Search within a selected PDF or across indexed documents.
+- **Local LLM Inference:** Generate answers using Ollama and `qwen2.5:7b`.
+- **Source Citations:** Return source filenames, page numbers, and retrieval similarity scores.
+- **PDF Upload:** Upload and index PDF documents through the application.
+- **REST API:** Access RAG functionality through FastAPI endpoints.
+- **Modern Web Interface:** React and Vite frontend integrated with the backend.
 
 ## Architecture
 
-```text
-                 ┌──────────────────────┐
-                 │      PDF Documents   │
-                 └──────────┬───────────┘
-                            │
-                            ▼
-                 ┌──────────────────────┐
-                 │  Text Extraction and │
-                 │   Document Chunks    │
-                 └──────────┬───────────┘
-                            │
-                            ▼
-                 ┌──────────────────────┐
-                 │ BGE Embedding Model  │
-                 │   (384 dimensions)   │
-                 └──────────┬───────────┘
-                            │
-                            ▼
-                 ┌──────────────────────┐
-                 │     FAISS Index      │
-                 └──────────┬───────────┘
-                            │
-         User Question ─────┤
-                            ▼
-                 ┌──────────────────────┐
-                 │  Semantic Retrieval  │
-                 └──────────┬───────────┘
-                            │
-                            ▼
-                 ┌──────────────────────┐
-                 │  Context + Question  │
-                 └──────────┬───────────┘
-                            │
-                            ▼
-                 ┌──────────────────────┐
-                 │ Ollama: Qwen 2.5 7B  │
-                 └──────────┬───────────┘
-                            │
-                            ▼
-                 ┌──────────────────────┐
-                 │ Answer + Citations   │
-                 └──────────────────────┘
+```mermaid
+flowchart TD
+    A[PDF Documents] --> B[PDF Text Extraction]
+    B --> C[Text Chunking]
+    C --> D[BGE Embedding Model]
+    D --> E[FAISS Vector Database]
+
+    U[User] --> F[React Frontend]
+    F --> G[FastAPI Backend]
+    G --> H[Query Embedding]
+    H --> I[FAISS Similarity Search]
+    E --> I
+
+    I --> J[Relevant Chunks]
+    J --> K[Context Construction]
+    K --> L[Ollama - Qwen 2.5 7B]
+    L --> M[Generated Answer]
+    J --> N[Source Citations]
+
+    M --> O[API Response]
+    N --> O
+    O --> F
 ```
 
 ## Technology Stack
 
 | Component | Technology |
 |---|---|
-| Programming language | Python |
-| API framework | FastAPI |
-| Embedding model | `BAAI/bge-small-en-v1.5` |
-| Vector database | FAISS |
-| Local language model | Ollama — `qwen2.5:7b` |
-| API documentation | Swagger UI |
-| Version control | Git and GitHub |
+| Frontend | React, Vite, CSS |
+| Backend | Python, FastAPI |
+| Embedding Model | BAAI/bge-small-en-v1.5 |
+| Vector Database | FAISS |
+| LLM Runtime | Ollama |
+| Language Model | Qwen 2.5 7B |
+| API Communication | REST / JSON |
+| Document Processing | PDF extraction and text chunking |
 
-## Prerequisites
+## Project Structure
 
-Install the following before running the project:
+```text
+RAGWise/
+│
+├── backend/
+│   ├── main.py
+│   ├── rag.py
+│   ├── retriever.py
+│   ├── embeddings.py
+│   ├── vector_store.py
+│   └── ...
+│
+├── frontend/
+│   └── app.py
+│
+├── frontend-ui/
+│   ├── public/
+│   ├── src/
+│   │   ├── assets/
+│   │   ├── services/
+│   │   │   └── api.js
+│   │   ├── App.jsx
+│   │   ├── App.css
+│   │   ├── index.css
+│   │   └── main.jsx
+│   ├── package.json
+│   └── vite.config.js
+│
+├── data/
+│   └── pdfs/
+│
+├── requirements.txt
+├── .gitignore
+└── README.md
+```
 
-- Python 3.11 recommended
+*Note: The local PDF folder and generated vector database are runtime data and are not included in the Git repository.*
+
+## Getting Started
+
+### 1. Prerequisites
+
+Install the following:
+
+- Python 3.11
+- Node.js and npm
 - Git
-- Ollama for local language model inference
-- The Ollama model `qwen2.5:7b`
+- Ollama
 
-## Installation and Setup
+You can download Ollama from:
 
-### 1. Clone the repository
+https://ollama.com/download
 
-```bash
+### 2. Clone the Repository
+
+```powershell
 git clone https://github.com/AvinashShelukar/RAGWise.git
+
 cd RAGWise
-git switch local-ollama-rag
 ```
 
-### 2. Create a virtual environment
+### 3. Configure the Python Environment
 
-**Windows PowerShell:**
+Create a virtual environment:
 
 ```powershell
-py -3.11 -m venv venv
+python -m venv venv
+```
+
+Activate it:
+
+```powershell
 .\venv\Scripts\Activate.ps1
 ```
 
-If PowerShell blocks activation, run:
+Install Python dependencies:
 
 ```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
-.\venv\Scripts\Activate.ps1
-```
-
-### 3. Install Python dependencies
-
-Install the project's dependencies using its dependency file:
-
-```powershell
-python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-Ensure the dependency file includes the packages required by the current local setup, including `sentence-transformers`, `numpy`, `faiss-cpu`, `fastapi`, `uvicorn`, and `python-multipart`.
+### 4. Configure Ollama
 
-### 4. Install and start Ollama
-
-Install Ollama from [ollama.com](https://ollama.com/), then download the model:
+Download the Qwen 2.5 7B model:
 
 ```powershell
 ollama pull qwen2.5:7b
 ```
 
-Verify the model:
+Verify that the model is available:
 
 ```powershell
 ollama list
 ```
 
-Ollama usually runs in the background on Windows. If it is not running, start it with:
+Make sure the Ollama service is running before asking questions.
+
+RAGWise uses Ollama's local generation API, so an external LLM API key is not required.
+
+### 5. Start the FastAPI Backend
+
+From the project root:
 
 ```powershell
-ollama serve
-```
+.\venv\Scripts\Activate.ps1
 
-The API should be available at `http://127.0.0.1:11434`.
-
-### 5. Add PDF documents
-
-Place your PDF files in the project's configured PDF directory and ensure they are indexed using the project's document-ingestion workflow.
-
-The vector index and metadata must correspond to the embedding model used by the application.
-
-### 6. Run the FastAPI application
-
-```powershell
 python -m uvicorn backend.main:app --reload
 ```
 
-Open the API documentation:
+Backend address:
 
-**http://127.0.0.1:8000/docs**
-
-Check API health:
-
-**http://127.0.0.1:8000/health**
-
-## API Usage
-
-### Health check
-
-```http
-GET /health
+```text
+http://127.0.0.1:8000
 ```
 
-### List documents
+Interactive API documentation:
 
-```http
-GET /documents
+```text
+http://127.0.0.1:8000/docs
 ```
 
-### Ask a question
+### 6. Start the React Frontend
+
+Open another PowerShell terminal:
+
+```powershell
+cd E:\WCE\RAGWise\frontend-ui
+```
+
+Install frontend dependencies:
+
+```powershell
+npm install
+```
+
+Start the development server:
+
+```powershell
+npm run dev
+```
+
+Open the local frontend URL printed by Vite, typically:
+
+```text
+http://localhost:5173
+```
+
+## How to Use RAGWise
+
+1. Start the Ollama service.
+2. Start the FastAPI backend.
+3. Start the React frontend.
+4. Open the RAGWise dashboard.
+5. Upload a PDF document.
+6. Select the document you want to query.
+7. Enter a natural-language question.
+8. Receive a generated answer with source citations.
+
+### Example Questions
+
+```text
+What is this PDF about?
+
+Summarize this document.
+
+What are the main objectives?
+
+Explain the proposed architecture.
+
+What datasets are discussed in this paper?
+
+What are the key findings?
+```
+
+## API Reference
+
+The FastAPI backend exposes the following endpoints:
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/` | API status |
+| GET | `/health` | Backend health check |
+| GET | `/documents` | List available PDFs |
+| POST | `/upload` | Upload and index a PDF |
+| POST | `/ask` | Ask a question about indexed documents |
+
+### Example: Ask a Question
+
+**Request**
 
 ```http
 POST /ask
 Content-Type: application/json
 ```
 
-Example request:
-
 ```json
 {
-  "question": "What is the main objective of the paper?",
-  "top_k": 3,
-  "source": "N8_LLM_CyberSecurity_SLR_2024.pdf"
+  "question": "What is this PDF about?",
+  "top_k": 5,
+  "source": "example.pdf"
 }
 ```
 
-Example response:
+**Example Response**
 
 ```json
 {
-  "answer": "The paper reviews the application of large language models in cybersecurity tasks.",
+  "answer": "The document describes the proposed system architecture and its main objectives.",
   "citations": [
     {
-      "source": "N8_LLM_CyberSecurity_SLR_2024.pdf",
-      "page": 7,
-      "score": 0.6683
+      "source": "example.pdf",
+      "page": 1,
+      "score": 0.82
     }
   ]
 }
 ```
 
-The answer and citation values above are illustrative; actual results depend on the indexed PDFs and retrieval output.
+*The response above is illustrative. Actual answers, filenames, and similarity scores depend on the indexed documents and query.*
 
-## Project Structure
+## Retrieval Pipeline
 
+RAGWise follows a standard Retrieval-Augmented Generation workflow:
 
-## Project Structure
+1. **Document Ingestion:** Extract text from uploaded PDF documents.
+2. **Chunking:** Divide extracted text into smaller passages.
+3. **Embedding Generation:** Convert passages into numerical vectors using BGE.
+4. **Vector Storage:** Store embeddings and metadata in FAISS.
+5. **Query Processing:** Convert the user's question into an embedding.
+6. **Similarity Search:** Retrieve relevant chunks from the vector database.
+7. **Context Construction:** Prepare retrieved passages for the language model.
+8. **Answer Generation:** Use the local Qwen model through Ollama.
+9. **Citation Generation:** Return source document and page information.
 
-```text
-RAGWise/
-├── backend/
-│   ├── __init__.py
-│   ├── chunker.py
-│   ├── embeddings.py
-│   ├── ingest.py
-│   ├── main.py
-│   ├── pdf_processor.py
-│   ├── rag.py
-│   ├── retriever.py
-│   ├── vector_store.py
-│   └── test_*.py
-├── data/
-│   └── pdfs/             # Local PDF documents (not committed)
-├── requirements.txt
-├── .gitignore
-└── README.md
-```
+## Privacy and Local Execution
 
-The `test_*.py` files contain tests for individual pipeline components.
+RAGWise is designed around local processing:
 
+- Embeddings are generated using a locally loaded Sentence Transformers model.
+- Vector search runs locally through FAISS.
+- Language generation runs through Ollama.
+- PDF files and generated vector data are stored locally.
 
-The actual project may contain additional files for ingestion, chunking, indexing, configuration, or testing.
+The application does not require a cloud-based LLM API for its normal inference workflow. Model downloads and initial embedding-model downloads do require internet access.
 
-## Important Notes
+## Current Development Status
 
-- The local Ollama integration requires Ollama to be installed and running on the machine executing the API.
-- The BGE embedding model must be downloaded and available locally on first use.
-- PDF content and generated answers can contain errors; verify important claims against the cited pages.
-- Do not commit API keys, `.env` files, private PDFs, virtual environments, or downloaded model weights.
-- The current local Ollama configuration is not automatically compatible with cloud hosting platforms such as Render. A cloud deployment needs a reachable inference service and an appropriate production configuration.
+| Component | Status |
+|---|---|
+| PDF ingestion | Implemented |
+| Text chunking | Implemented |
+| BGE embeddings | Implemented |
+| FAISS vector retrieval | Implemented |
+| Local Ollama inference | Implemented |
+| FastAPI integration | Implemented |
+| React + Vite frontend | Implemented |
+| PDF selection and upload UI | Implemented |
+| Source/page citations | Implemented |
+| End-to-end testing | In progress |
 
 ## Future Improvements
 
-- Build a Streamlit chat interface.
-- Improve PDF ingestion and document management.
-- Add automated tests for retrieval and answer generation.
-- Improve answer-quality evaluation and citation verification.
-- Add production deployment configuration and monitoring.
+- Conversation history and contextual follow-up questions.
+- Improved retrieval evaluation and ranking.
+- Better document preview and citation navigation.
+- Support for additional document formats.
+- Automated RAG evaluation and benchmarking.
+- More comprehensive error handling and monitoring.
 
+## Contributing
+
+Contributions, suggestions, and bug reports are welcome.
+
+1. Fork the repository.
+2. Create a feature branch.
+3. Implement your changes.
+4. Test the application.
+5. Submit a pull request with a clear description.
+
+## Author
+
+**Avinash Shelukar**
+
+M.Tech Computer Science and Engineering
+
+Walchand College of Engineering, Sangli
+
+- GitHub: https://github.com/AvinashShelukar
+- LinkedIn: https://www.linkedin.com/in/avinash-shelukar-05b01b246/
 
 ## License
 
-Add a license file if you intend to distribute the project under an open-source license.
+This project is licensed under the MIT License, subject to the repository's actual license file.
+
+---
+
+<p align="center">
+  <strong>RAGWise — Your documents. Your knowledge. Your local AI.</strong>
+</p>
